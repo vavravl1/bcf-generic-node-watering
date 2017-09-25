@@ -1,23 +1,25 @@
 #include <application.h>
 #include <radio.h>
 
-#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#include "watering.h"
+
+#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (1 * 60 * 1000)
 #define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.1f
 #define TEMPERATURE_TAG_UPDATE_INTERVAL (1 * 1000)
 
-#define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (1 * 60 * 1000)
 #define HUMIDITY_TAG_PUB_VALUE_CHANGE 1.0f
 #define HUMIDITY_TAG_UPDATE_INTERVAL (1 * 1000)
 
-#define LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#define LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL (1 * 60 * 1000)
 #define LUX_METER_TAG_PUB_VALUE_CHANGE 5.0f
 #define LUX_METER_TAG_UPDATE_INTERVAL (1 * 1000)
 
-#define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (5 * 60 * 1000)
+#define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (1 * 60 * 1000)
 #define BAROMETER_TAG_PUB_VALUE_CHANGE 10.0f
 #define BAROMETER_TAG_UPDATE_INTERVAL (1 * 1000)
 
-#define CO2_PUB_NO_CHANGE_INTERVAL (5 * 60 * 1000)
+#define CO2_PUB_NO_CHANGE_INTERVAL (1 * 60 * 1000)
 #define CO2_PUB_VALUE_CHANGE 50.0f
 
 #if MODULE_POWER
@@ -247,9 +249,9 @@ void application_init(void)
     bc_flood_detector_set_event_handler(&flood_detector_b, flood_detector_event_handler, &flood_detector_b_event_param);
     bc_flood_detector_set_update_interval(&flood_detector_b, 1000);
 
-    static bc_module_pir_t pir;
-    bc_module_pir_init(&pir);
-    bc_module_pir_set_event_handler(&pir, pir_event_handler, NULL);
+//    static bc_module_pir_t pir;
+//    bc_module_pir_init(&pir);
+//    bc_module_pir_set_event_handler(&pir, pir_event_handler, NULL);
 
 #if MODULE_POWER
     bc_radio_listen();
@@ -270,6 +272,8 @@ void application_init(void)
         bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_STANDARD);
     #endif
 #endif
+
+    vv_init_watering();
 }
 
 void application_task(void)
