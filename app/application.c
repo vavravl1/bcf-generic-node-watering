@@ -4,6 +4,8 @@
 #include "watering.h"
 
 #define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (1 * 60 * 1000)
+#define BATTERY_UPDATE_INTERVAL (60 * 60 * 1000)
+
 #define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.1f
 #define TEMPERATURE_TAG_UPDATE_INTERVAL (1 * 1000)
 
@@ -132,7 +134,10 @@ static bc_module_relay_t relay_0_1;
 static void led_strip_update_task(void *param);
 static void radio_event_handler(bc_radio_event_t event, void *event_param);
 static void _radio_pub_state(uint8_t type, bool state);
-#endif
+#else
+void battery_event_handler(bc_module_battery_event_t event, void *event_param);
+#endif //MODULE_POWER
+
 static void lcd_page_render();
 static void temperature_tag_init(bc_i2c_channel_t i2c_channel, bc_tag_temperature_i2c_address_t i2c_address, temperature_tag_t *tag);
 static void humidity_tag_init(bc_tag_humidity_revision_t revision, bc_i2c_channel_t i2c_channel, humidity_tag_t *tag);
@@ -271,6 +276,8 @@ void application_init(void)
     #else
         bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_STANDARD);
     #endif
+        bc_module_battery_set_event_handler(battery_event_handler, NULL);
+        bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
 #endif
 
     vv_init_watering();
@@ -837,13 +844,29 @@ void bc_radio_on_buffer(uint64_t *peer_device_address, uint8_t *buffer, size_t *
             bc_module_relay_pulse(buffer[0] == RADIO_RELAY_0_PULSE_SET ? &relay_0_0 : &relay_0_1, buffer[sizeof(uint64_t) + 1], (bc_tick_t)duration);
             break;
         }
+        case RADIO_RELAY_0_GET:
+        case RADIO_RELAY_1_GET:
+        {
+            bc_module_relay_state_t state = bc_module_relay_get_state(buffer[0] == RADIO_RELAY_0_GET ? &relay_0_0 : &relay_0_1);
+            if (state != BC_MODULE_RELAY_STATE_UNKNOWN)
+            {
+                _radio_pub_state(buffer[0] == RADIO_RELAY_0_GET ? RADIO_RELAY_0 : RADIO_RELAY_1, state == BC_MODULE_RELAY_STATE_TRUE ? true : false);
+            }
+            break;
+        }
         case RADIO_RELAY_POWER_SET:
         {
             if (*length != (1 + sizeof(uint64_t) + 1))
             {
                 return;
             }
-            bc_module_power_relay_set_state(buffer[sizeof(uint64_t) + 1]);
+            bc_module_power_relay_set_state(*pointer);
+            _radio_pub_state(RADIO_RELAY_POWER, *pointer);
+            break;
+        }
+        case RADIO_RELAY_POWER_GET:
+        {
+            _radio_pub_state(RADIO_RELAY_POWER, bc_module_power_relay_get_state());
             break;
         }
         case RADIO_LED_STRIP_COLOR_SET:
@@ -1064,7 +1087,22 @@ static void _radio_pub_state(uint8_t type, bool state)
     buffer[1] = state;
     bc_radio_pub_buffer(buffer, sizeof(buffer));
 }
-#endif
+#else
+
+void battery_event_handler(bc_module_battery_event_t event, void *event_param)
+{
+    (void) event;
+    (void) event_param;
+
+    float voltage;
+
+    if (bc_module_battery_get_voltage(&voltage))
+    {
+        bc_radio_pub_battery((BATTERY_MINI ? 1 : 0), &voltage);
+    }
+}
+
+#endif // MODULE_POWER
 
 static void _radio_pub_u16(uint8_t type, uint16_t value)
 {
