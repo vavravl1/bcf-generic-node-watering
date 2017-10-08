@@ -31,9 +31,11 @@ void _vv_init_water_level() {
     vv_watering_self._stop_measuring_water_level_task_id = bc_scheduler_register(_stop_measuring_water_level_task, NULL, 100);    
 }
 
+#ifdef VV_DEBUG        
 void _vv_init_usb_logging() {
      bc_usb_cdc_init();
 }
+#endif
 
 void _vv_init_humidity() {
     vv_watering_self._measured_humidity = 255;
