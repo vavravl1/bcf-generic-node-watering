@@ -73,7 +73,9 @@ void _init_water_level_input() {
 // -------------------------------------------------------------
 // Main Intializer
 void vv_init_watering() {
+#ifdef VV_DEBUG    
     _vv_init_usb_logging();
+#endif    
     _vv_init_water_level();
     _vv_init_humidity();
     _vv_init_water_pump();
@@ -83,7 +85,9 @@ void vv_init_watering() {
 void vv_log_to_usb(char* message, const char * format, ... ) {
     char buffer[100];
     snprintf(buffer, 100, message, format);    
+#ifdef VV_DEBUG        
     bc_usb_cdc_write(buffer, strlen(buffer));
+#endif    
 }
 
 void _measure_water_level_task() {
