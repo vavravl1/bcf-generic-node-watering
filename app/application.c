@@ -39,7 +39,6 @@ void temperature_tag_event_handler(bc_tag_temperature_t *self, bc_tag_temperatur
 void humidity_tag_event_handler(bc_tag_humidity_t *self, bc_tag_humidity_event_t event, void *event_param);
 void lux_meter_event_handler(bc_tag_lux_meter_t *self, bc_tag_lux_meter_event_t event, void *event_param);
 void barometer_tag_event_handler(bc_tag_barometer_t *self, bc_tag_barometer_event_t event, void *event_param);
-void co2_event_handler(bc_module_co2_event_t event, void *event_param);
 void flood_detector_event_handler(bc_flood_detector_t *self, bc_flood_detector_event_t event, void *event_param);
 void pir_event_handler(bc_module_pir_t *self, bc_module_pir_event_t event, void*event_param);
 void encoder_event_handler(bc_module_encoder_event_t event, void *event_param);
@@ -109,13 +108,6 @@ void application_init(void)
 
     static barometer_tag_t barometer_tag_1_0;
     barometer_tag_init(BC_I2C_I2C1, &barometer_tag_1_0);
-
-    //----------------------------
-
-    static event_param_t co2_event_param = { .next_pub = 0 };
-    bc_module_co2_init();
-    bc_module_co2_set_update_interval(CO2_UPDATE_INTERVAL);
-    bc_module_co2_set_event_handler(co2_event_handler, &co2_event_param);
 
     //----------------------------
 
@@ -340,27 +332,6 @@ void barometer_tag_event_handler(bc_tag_barometer_t *self, bc_tag_barometer_even
         param->next_pub = bc_scheduler_get_spin_tick() + BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL;
 
         bc_scheduler_plan_now(0);
-    }
-}
-
-void co2_event_handler(bc_module_co2_event_t event, void *event_param)
-{
-    event_param_t *param = (event_param_t *) event_param;
-    float value;
-
-    if (event == BC_MODULE_CO2_EVENT_UPDATE)
-    {
-        if (bc_module_co2_get_concentration(&value))
-        {
-            if ((fabs(value - param->value) >= CO2_PUB_VALUE_CHANGE) || (param->next_pub < bc_scheduler_get_spin_tick()))
-            {
-                bc_radio_pub_co2(&value);
-                param->value = value;
-                param->next_pub = bc_scheduler_get_spin_tick() + CO2_PUB_NO_CHANGE_INTERVAL;
-
-                bc_scheduler_plan_now(0);
-            }
-        }
     }
 }
 
