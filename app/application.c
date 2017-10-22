@@ -35,117 +35,13 @@
 bc_led_t led;
 bool led_state = false;
 
-static struct
-{
-    float_t temperature;
-    float_t humidity;
-    float_t illuminance;
-    float_t pressure;
-    float_t altitude;
-    float_t co2_concentation;
 
-} values;
-
-static const struct
-{
-    char *name0;
-    char *format0;
-    float_t *value0;
-    char *unit0;
-    char *name1;
-    char *format1;
-    float_t *value1;
-    char *unit1;
-
-} pages[] = {
-    {"Temperature   ", "%.1f", &values.temperature, "\xb0" "C",
-     "Humidity      ", "%.1f", &values.humidity, "%"},
-    {"CO2           ", "%.0f", &values.co2_concentation, "ppm",
-     "Illuminance   ", "%.1f", &values.illuminance, "lux"},
-    {"Pressure      ", "%.0f", &values.pressure, "hPa",
-     "Altitude      ", "%.1f", &values.altitude, "m"},
-};
-
-static int page_index = 0;
-static int menu_item = 0;
-
-static struct
-{
-    bc_tick_t next_update;
-    bool mqtt;
-
-} lcd;
-
-#if MODULE_POWER
-static uint64_t my_device_address;
-
-static char *menu_items[] = {
-        "Page 0",
-        "LED Test",
-        "Effect Rainbow",
-        "Effect Rainbow cycle",
-        "Effect Theater chase rainbow"
-};
-
-static uint32_t _bc_module_power_led_strip_dma_buffer[LED_STRIP_COUNT * LED_STRIP_TYPE * 2];
-const bc_led_strip_buffer_t led_strip_buffer =
-{
-    .type = LED_STRIP_TYPE,
-    .count = LED_STRIP_COUNT,
-    .buffer = _bc_module_power_led_strip_dma_buffer
-};
-
-typedef enum
-{
-    LED_STRIP_SHOW_NONE = 0,
-    LED_STRIP_SHOW_COLOR = 1,
-    LED_STRIP_SHOW_COMPOUND = 2,
-    LED_STRIP_SHOW_EFFECT = 3,
-    LED_STRIP_SHOW_THERMOMETER = 4
-
-} led_strip_show_t;
-
-static struct
-{
-    led_strip_show_t show;
-    led_strip_show_t last;
-    bc_led_strip_t self;
-    uint32_t color;
-    struct
-    {
-        uint8_t data[5*20];
-        int length;
-    } compound;
-    struct
-    {
-        float temperature;
-        int8_t min;
-        int8_t max;
-
-    } thermometer;
-
-    bc_scheduler_task_id_t update_task_id;
-
-} led_strip = { .show = LED_STRIP_SHOW_NONE };
-
-static bc_module_relay_t relay_0_0;
-static bc_module_relay_t relay_0_1;
-
-static void led_strip_update_task(void *param);
-static void radio_event_handler(bc_radio_event_t event, void *event_param);
-static void _radio_pub_state(uint8_t type, bool state);
-#else
-void battery_event_handler(bc_module_battery_event_t event, void *event_param);
-#endif //MODULE_POWER
-
-static void lcd_page_render();
 static void temperature_tag_init(bc_i2c_channel_t i2c_channel, bc_tag_temperature_i2c_address_t i2c_address, temperature_tag_t *tag);
 static void humidity_tag_init(bc_tag_humidity_revision_t revision, bc_i2c_channel_t i2c_channel, humidity_tag_t *tag);
 static void lux_meter_tag_init(bc_i2c_channel_t i2c_channel, bc_tag_lux_meter_i2c_address_t i2c_address, lux_meter_tag_t *tag);
 static void barometer_tag_init(bc_i2c_channel_t i2c_channel, barometer_tag_t *tag);
 
 void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param);
-void lcd_button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param);
 void temperature_tag_event_handler(bc_tag_temperature_t *self, bc_tag_temperature_event_t event, void *event_param);
 void humidity_tag_event_handler(bc_tag_humidity_t *self, bc_tag_humidity_event_t event, void *event_param);
 void lux_meter_event_handler(bc_tag_lux_meter_t *self, bc_tag_lux_meter_event_t event, void *event_param);
@@ -231,17 +127,6 @@ void application_init(void)
 
     //----------------------------
 
-    memset(&values, 0xff, sizeof(values));
-    bc_module_lcd_init(&_bc_module_lcd_framebuffer);
-
-    static bc_button_t lcd_left;
-    bc_button_init_virtual(&lcd_left, BC_MODULE_LCD_BUTTON_LEFT, bc_module_lcd_get_button_driver(), false);
-    bc_button_set_event_handler(&lcd_left, lcd_button_event_handler, NULL);
-
-    static bc_button_t lcd_right;
-    bc_button_init_virtual(&lcd_right, BC_MODULE_LCD_BUTTON_RIGHT, bc_module_lcd_get_button_driver(), false);
-    bc_button_set_event_handler(&lcd_right, lcd_button_event_handler, NULL);
-
     static bc_flood_detector_t flood_detector_a;
     static event_param_t flood_detector_a_event_param = {.number = 'a', .value = -1};
     bc_flood_detector_init(&flood_detector_a, BC_FLOOD_DETECTOR_TYPE_LD_81_SENSOR_MODULE_CHANNEL_A);
@@ -276,7 +161,6 @@ void application_init(void)
     #else
         bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_STANDARD);
     #endif
-        bc_module_battery_set_event_handler(battery_event_handler, NULL);
         bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
 #endif
 
@@ -285,74 +169,7 @@ void application_init(void)
 
 void application_task(void)
 {
-    if (!bc_module_lcd_is_ready())
-    {
-        return;
-    }
 
-    if (!lcd.mqtt)
-    {
-        lcd_page_render();
-    }
-    else
-    {
-        bc_scheduler_plan_current_relative(500);
-    }
-
-    bc_module_lcd_update();
-}
-
-static void lcd_page_render()
-{
-
-    int w;
-    char str[32];
-
-    bc_module_core_pll_enable();
-
-    bc_module_lcd_clear();
-
-    if (page_index < 3)
-    {
-        bc_module_lcd_set_font(&bc_font_ubuntu_15);
-        bc_module_lcd_draw_string(10, 5, pages[page_index].name0, true);
-
-        bc_module_lcd_set_font(&bc_font_ubuntu_28);
-        snprintf(str, sizeof(str), pages[page_index].format0, *pages[page_index].value0);
-        w = bc_module_lcd_draw_string(25, 25, str, true);
-        bc_module_lcd_set_font(&bc_font_ubuntu_15);
-        w = bc_module_lcd_draw_string(w, 35, pages[page_index].unit0, true);
-
-        bc_module_lcd_set_font(&bc_font_ubuntu_15);
-        bc_module_lcd_draw_string(10, 55, pages[page_index].name1, true);
-
-        bc_module_lcd_set_font(&bc_font_ubuntu_28);
-        snprintf(str, sizeof(str), pages[page_index].format1, *pages[page_index].value1);
-        w = bc_module_lcd_draw_string(25, 75, str, true);
-        bc_module_lcd_set_font(&bc_font_ubuntu_15);
-        bc_module_lcd_draw_string(w, 85, pages[page_index].unit1, true);
-    }
-#if MODULE_POWER
-    else
-    {
-        bc_module_lcd_set_font(&bc_font_ubuntu_13);
-
-        for (int i = 0; i < 5; i++)
-        {
-            bc_module_lcd_draw_string(5, 5 + (i * 15), menu_items[i], i != menu_item);
-        }
-
-        bc_module_lcd_set_font(&bc_font_ubuntu_13);
-        bc_module_lcd_draw_string(5, 115, "Down", true);
-        bc_module_lcd_draw_string(90, 115, "Enter", true);
-    }
-#endif
-
-    snprintf(str, sizeof(str), "%d/%d", page_index + 1, MAX_PAGE_INDEX + 1);
-    bc_module_lcd_set_font(&bc_font_ubuntu_13);
-    bc_module_lcd_draw_string(55, 115, str, true);
-
-    bc_module_core_pll_disable();
 }
 
 static void temperature_tag_init(bc_i2c_channel_t i2c_channel, bc_tag_temperature_i2c_address_t i2c_address, temperature_tag_t *tag)
@@ -451,86 +268,6 @@ void button_event_handler(bc_button_t *self, bc_button_event_t event, void *even
     }
 }
 
-void lcd_button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
-{
-    (void) event_param;
-
-    if (event != BC_BUTTON_EVENT_CLICK)
-    {
-        return;
-    }
-
-    if (self->_channel.virtual_channel == BC_MODULE_LCD_BUTTON_LEFT)
-    {
-        if ((page_index != 3))
-        {
-            // Key prew page
-            page_index--;
-            if (page_index < 0)
-            {
-                page_index = MAX_PAGE_INDEX;
-                menu_item = 0;
-            }
-        }
-        else
-        {
-            // Key menu down
-            menu_item++;
-            if (menu_item == 5)
-            {
-                menu_item = 0;
-            }
-        }
-
-        static uint16_t left_event_count = 0;
-        _radio_pub_u16(RADIO_LCD_BUTTON_LEFT, left_event_count++);
-    }
-    else
-    {
-        if ((page_index != 3) || (menu_item == 0))
-        {
-            // Key next page
-            page_index++;
-            if (page_index > MAX_PAGE_INDEX)
-            {
-                page_index = 0;
-            }
-            if (page_index == 3)
-            {
-                menu_item = 0;
-            }
-        }
-#if MODULE_POWER
-        else if (page_index == 3)
-        {
-            // Key enter
-            if (menu_item == 1)
-            {
-                bc_led_strip_effect_test(&led_strip.self);
-            }
-            else if (menu_item == 2)
-            {
-                bc_led_strip_effect_rainbow(&led_strip.self, 50);
-            }
-            else if (menu_item == 3)
-            {
-                bc_led_strip_effect_rainbow_cycle(&led_strip.self, 50);
-            }
-            else if (menu_item == 4)
-            {
-                bc_led_strip_effect_theater_chase_rainbow(&led_strip.self, 50);
-            }
-            led_strip.show = LED_STRIP_SHOW_EFFECT;
-        }
-#endif
-
-        static uint16_t right_event_count = 0;
-        _radio_pub_u16(RADIO_LCD_BUTTON_RIGHT, right_event_count++);
-    }
-
-    bc_scheduler_plan_now(0);
-}
-
 void temperature_tag_event_handler(bc_tag_temperature_t *self, bc_tag_temperature_event_t event, void *event_param)
 {
     float value;
@@ -549,7 +286,6 @@ void temperature_tag_event_handler(bc_tag_temperature_t *self, bc_tag_temperatur
             param->value = value;
             param->next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL;
 
-            values.temperature = value;
             bc_scheduler_plan_now(0);
         }
     }
@@ -573,7 +309,6 @@ void humidity_tag_event_handler(bc_tag_humidity_t *self, bc_tag_humidity_event_t
             param->value = value;
             param->next_pub = bc_scheduler_get_spin_tick() + HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL;
 
-            values.humidity = value;
             bc_scheduler_plan_now(0);
         }
     }
@@ -597,7 +332,6 @@ void lux_meter_event_handler(bc_tag_lux_meter_t *self, bc_tag_lux_meter_event_t 
             param->value = value;
             param->next_pub = bc_scheduler_get_spin_tick() + LUX_METER_TAG_PUB_NO_CHANGE_INTEVAL;
 
-            values.illuminance = value;
             bc_scheduler_plan_now(0);
         }
     }
@@ -631,8 +365,6 @@ void barometer_tag_event_handler(bc_tag_barometer_t *self, bc_tag_barometer_even
         param->value = pascal;
         param->next_pub = bc_scheduler_get_spin_tick() + BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL;
 
-        values.pressure = pascal / 100.0;
-        values.altitude = meter;
         bc_scheduler_plan_now(0);
     }
 }
@@ -652,7 +384,6 @@ void co2_event_handler(bc_module_co2_event_t event, void *event_param)
                 param->value = value;
                 param->next_pub = bc_scheduler_get_spin_tick() + CO2_PUB_NO_CHANGE_INTERVAL;
 
-                values.co2_concentation = value;
                 bc_scheduler_plan_now(0);
             }
         }
@@ -768,18 +499,6 @@ static void led_strip_update_task(void *param)
             led_strip.last = LED_STRIP_SHOW_EFFECT;
             return;
         }
-        case LED_STRIP_SHOW_THERMOMETER:
-        {
-            uint8_t white = values.illuminance < 50 ? 1 : 0;
-            bc_led_strip_effect_stop(&led_strip.self);
-
-            bc_led_strip_thermometer(&led_strip.self, led_strip.thermometer.temperature,
-                    led_strip.thermometer.min, led_strip.thermometer.max, white);
-
-            led_strip.last = LED_STRIP_SHOW_THERMOMETER;
-            break;
-        }
-        case LED_STRIP_SHOW_NONE:
         default:
         {
             break;
@@ -986,91 +705,6 @@ void bc_radio_on_buffer(uint64_t *peer_device_address, uint8_t *buffer, size_t *
             led_strip.thermometer.max = buffer[1 + sizeof(uint64_t) + sizeof(float) + 1];
             led_strip.show = LED_STRIP_SHOW_THERMOMETER;
             bc_scheduler_plan_now(led_strip.update_task_id);
-            break;
-        }
-        case RADIO_LCD_TEXT_SET:
-        {
-            if (*length < (1 + sizeof(uint64_t) + 4 + 2))
-            {
-                return;
-            }
-
-            int x = (int) *pointer++;
-            int y = (int) *pointer++;
-            int font_size = (int) *pointer++;
-            bool color = (bool) *pointer++;
-            size_t text_length = (size_t) *pointer++;
-            char text[32];
-            memcpy(text, pointer, text_length + 1);
-            text[text_length] = 0;
-
-            bc_module_core_pll_enable();
-
-            if (!lcd.mqtt)
-            {
-                bc_module_lcd_clear();
-                lcd.mqtt = true;
-                bc_scheduler_plan_now(0);
-            }
-
-            switch (font_size)
-            {
-                case 11:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_11);
-                    break;
-                }
-                case 13:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_13);
-                    break;
-                }
-                case 15:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_15);
-                    break;
-                }
-                case 24:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_24);
-                    break;
-                }
-                case 28:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_28);
-                    break;
-                }
-                case 33:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_33);
-                    break;
-                }
-                default:
-                {
-                    bc_module_lcd_set_font(&bc_font_ubuntu_15);
-                    break;
-                }
-            }
-
-            bc_module_lcd_draw_string(x, y, text, color);
-
-            bc_module_core_pll_disable();
-
-            break;
-        }
-        case RADIO_LCD_SCREEN_CLEAR:
-        {
-            bc_module_core_pll_enable();
-
-            if (!lcd.mqtt)
-            {
-                lcd.mqtt = true;
-                bc_scheduler_plan_now(0);
-            }
-
-            bc_module_lcd_clear();
-
-            bc_module_core_pll_disable();
             break;
         }
         default:
