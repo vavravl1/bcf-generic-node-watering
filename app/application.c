@@ -135,27 +135,6 @@ void application_init(void)
 //    bc_module_pir_init(&pir);
 //    bc_module_pir_set_event_handler(&pir, pir_event_handler, NULL);
 
-#if MODULE_POWER
-    bc_radio_listen();
-    bc_radio_set_event_handler(radio_event_handler, NULL);
-
-    bc_module_power_init();
-    bc_led_strip_init(&led_strip.self, bc_module_power_get_led_strip_driver(), &led_strip_buffer);
-
-    bc_module_relay_init(&relay_0_0, BC_MODULE_RELAY_I2C_ADDRESS_DEFAULT);
-    bc_module_relay_init(&relay_0_1, BC_MODULE_RELAY_I2C_ADDRESS_ALTERNATE);
-
-    led_strip.update_task_id = bc_scheduler_register(led_strip_update_task, NULL, BC_TICK_INFINITY);
-
-#else
-    #if BATTERY_MINI
-        bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_MINI);
-    #else
-        bc_module_battery_init(BC_MODULE_BATTERY_FORMAT_STANDARD);
-    #endif
-        bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
-#endif
-
     vv_init_watering();
 }
 
@@ -418,49 +397,4 @@ void pir_event_handler(bc_module_pir_t *self, bc_module_pir_event_t event, void 
         bc_radio_pub_buffer(buffer, sizeof(buffer));
     }
 }
-
-#if MODULE_POWER
-static void radio_event_handler(bc_radio_event_t event, void *event_param)
-{
-    (void) event_param;
-
-    bc_led_set_mode(&led, BC_LED_MODE_OFF);
-
-    if (event == BC_RADIO_EVENT_ATTACH)
-    {
-        bc_led_pulse(&led, 1000);
-    }
-    else if (event == BC_RADIO_EVENT_DETACH)
-    {
-        bc_led_pulse(&led, 1000);
-    }
-    else if (event == BC_RADIO_EVENT_INIT_DONE)
-    {
-        my_device_address = bc_radio_get_device_address();
-    }
-}
-
-static void _radio_pub_state(uint8_t type, bool state)
-{
-    uint8_t buffer[2];
-    buffer[0] = type;
-    buffer[1] = state;
-    bc_radio_pub_buffer(buffer, sizeof(buffer));
-}
-#else
-
-void battery_event_handler(bc_module_battery_event_t event, void *event_param)
-{
-    (void) event;
-    (void) event_param;
-
-    float voltage;
-
-    if (bc_module_battery_get_voltage(&voltage))
-    {
-        bc_radio_pub_battery((BATTERY_MINI ? 1 : 0), &voltage);
-    }
-}
-
-#endif // MODULE_POWER
 
