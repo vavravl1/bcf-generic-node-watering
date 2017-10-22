@@ -23,14 +23,7 @@
 
 #define CO2_PUB_NO_CHANGE_INTERVAL (1 * 60 * 1000)
 #define CO2_PUB_VALUE_CHANGE 50.0f
-
-#if MODULE_POWER
-#define MAX_PAGE_INDEX 3
-#define CO2_UPDATE_INTERVAL (15 * 1000)
-#else
-#define MAX_PAGE_INDEX 2
 #define CO2_UPDATE_INTERVAL (1 * 60 * 1000)
-#endif
 
 bc_led_t led;
 bool led_state = false;
@@ -50,7 +43,6 @@ void co2_event_handler(bc_module_co2_event_t event, void *event_param);
 void flood_detector_event_handler(bc_flood_detector_t *self, bc_flood_detector_event_t event, void *event_param);
 void pir_event_handler(bc_module_pir_t *self, bc_module_pir_event_t event, void*event_param);
 void encoder_event_handler(bc_module_encoder_event_t event, void *event_param);
-static void _radio_pub_u16(uint8_t type, uint16_t value);
 
 void application_init(void)
 {
@@ -737,12 +729,4 @@ void battery_event_handler(bc_module_battery_event_t event, void *event_param)
 }
 
 #endif // MODULE_POWER
-
-static void _radio_pub_u16(uint8_t type, uint16_t value)
-{
-    uint8_t buffer[1 + sizeof(value)];
-    buffer[0] = type;
-    memcpy(buffer + 1, &value, sizeof(value));
-    bc_radio_pub_buffer(buffer, sizeof(buffer));
-}
 
