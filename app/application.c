@@ -440,68 +440,6 @@ static void radio_event_handler(bc_radio_event_t event, void *event_param)
     }
 }
 
-static void led_strip_update_task(void *param)
-{
-    (void) param;
-
-    if (!bc_led_strip_is_ready(&led_strip.self))
-    {
-        bc_scheduler_plan_current_now();
-        return;
-    }
-
-    switch (led_strip.show) {
-        case LED_STRIP_SHOW_COLOR:
-        {
-            bc_led_strip_effect_stop(&led_strip.self);
-
-            bc_led_strip_fill(&led_strip.self, led_strip.color);
-
-            led_strip.show = LED_STRIP_SHOW_NONE;
-            led_strip.last = LED_STRIP_SHOW_COLOR;
-            break;
-        }
-        case LED_STRIP_SHOW_COMPOUND:
-        {
-            bc_led_strip_effect_stop(&led_strip.self);
-
-            int from = 0;
-            int to;
-            uint8_t *color;
-
-            for (int i = 0; i < led_strip.compound.length; i += 5)
-            {
-                color = led_strip.compound.data + i + 1;
-                to = from + led_strip.compound.data[i];
-
-                for (;(from < to) && (from < LED_STRIP_COUNT); from++)
-                {
-                    bc_led_strip_set_pixel_rgbw(&led_strip.self, from, color[0], color[1], color[2], color[3]);
-                }
-
-                from = to;
-            }
-
-            led_strip.show = LED_STRIP_SHOW_NONE;
-            led_strip.last = LED_STRIP_SHOW_COMPOUND;
-            break;
-        }
-        case LED_STRIP_SHOW_EFFECT:
-        {
-            led_strip.last = LED_STRIP_SHOW_EFFECT;
-            return;
-        }
-        default:
-        {
-            break;
-        }
-    }
-
-    bc_led_strip_write(&led_strip.self);
-
-    bc_scheduler_plan_current_relative(250);
-}
-
 static void _radio_pub_state(uint8_t type, bool state)
 {
     uint8_t buffer[2];
