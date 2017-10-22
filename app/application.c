@@ -230,6 +230,7 @@ void button_event_handler(bc_button_t *self, bc_button_event_t event, void *even
         bc_radio_pub_push_button(&event_count);
 
         event_count++;
+	vv_start_water_pump();
     }
     else if (event == BC_BUTTON_EVENT_HOLD)
     {
