@@ -135,6 +135,8 @@ void application_init(void)
 //    bc_module_pir_init(&pir);
 //    bc_module_pir_set_event_handler(&pir, pir_event_handler, NULL);
 
+    bc_radio_listen();
+
     vv_init_watering();
 }
 
