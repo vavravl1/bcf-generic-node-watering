@@ -9,7 +9,7 @@
 
 #define WATERING_PROCESS_DELAY 10000
 #define WATERING_HUMIDITY_THRESHOLD 155
-#define MEASURE_HUMIDITY_DELAY 1000
+#define MEASURE_HUMIDITY_DELAY 10000
 #define PUMP_ON_TIME 5000
 
 void _watering_process_task();
@@ -131,6 +131,6 @@ void _radio_pub_watering(uint8_t event_type, uint8_t value) {
     struct vv_radio_single_float_packet packet;
     packet.type = event_type;
     packet.value = (float)value;
-    packet.device_address = bc_radio_get_device_address();
+    packet.device_address = bc_radio_get_my_id();
     vv_radio_send_update(&packet);
 }
