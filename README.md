@@ -1,26 +1,33 @@
-<a href="https://www.bigclown.com"><img src="https://s3.eu-central-1.amazonaws.com/bigclown/gh-readme-logo.png" alt="BigClown Logo" align="right"></a>
+# Automatic Watering based on BigClown
 
-# Firmware for BigClown Generic Node
+This project solves a common problem of plant watering at home.
+It is based on a feedback loop where the watering is initiated by the measurement of soil moisture.
+The moisture is measured each 10 seconds. Besides that the temperature neat the plant is also measured.
+The watering itself is done by a small 12v pump.
+The water level in the water reservoir is measured so that when there is no water the watering is stopped.
+All the actions that are done are send using BigClown module to the hub where the results can be analyzed.
 
-[![Travis](https://img.shields.io/travis/bigclownlabs/bcf-generic-node/master.svg)](https://travis-ci.org/bigclownlabs/bcf-generic-node)
-[![Release](https://img.shields.io/github/release/bigclownlabs/bcf-generic-node.svg)](https://github.com/bigclownlabs/bcf-generic-node/releases)
-[![License](https://img.shields.io/github/license/bigclownlabs/bcf-generic-node.svg)](https://github.com/bigclownlabs/bcf-generic-node/blob/master/LICENSE)
-[![Twitter](https://img.shields.io/twitter/follow/BigClownLabs.svg?style=social&label=Follow)](https://twitter.com/BigClownLabs)
 
-This repository contains firmware for BigClown Generic Node.
+![alt text](img/whole_small.JPG)
 
-## Firmware Programming
+## Required components
+* BigClown core module ![alt text]
+![alt whole system](img/system_small.JPG)
+
+* Soil moisture sensor
+![alt moisture sensor](img/moisture_small.JPG)
+
+* 12V pump
+![alt pump](img/pump_small.JPG)
+
+* Power source - a battery pack in my case
+* Water level sensor
+![alt water level sensor](img/water_level.JPG)
+
+* Few electronic parts
+* Water reservoir
+
+## Schema
+![alt schema](img/board.png)
+
 ```
-dfu-util -s 0x08000000:leave -d 0483:df11 -a 0 -D firmware.bin
-```
-More information about dfu [here](https://doc.bigclown.com/core-module-flashing.html)
-
-Firmware for gateway is here [https://github.com/bigclownlabs/bcf-usb-gateway](https://github.com/bigclownlabs/bcf-usb-gateway)
-
-## License
-
-This project is licensed under the [MIT License](https://opensource.org/licenses/MIT/) - see the [LICENSE](LICENSE) file for details.
-
----
-
-Made with &#x2764;&nbsp; by [BigClown Labs s.r.o.](https://www.bigclown.com) in Czech Republic.
